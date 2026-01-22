@@ -1,63 +1,68 @@
-import React, { useEffect, useState } from "react";
-import { Html5QrcodeScanner } from "html5-qrcode";
+import React, { useState } from "react";
 import axios from "axios";
+import "./App.css";
 
 function App() {
-  const [scannedUrl, setScannedUrl] = useState("");
+  const [url, setUrl] = useState("");
   const [status, setStatus] = useState("");
+  const [reasons, setReasons] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (scannedUrl) return;
+  const checkUrlSafety = async () => {
+    if (!url) return;
 
-    const scanner = new Html5QrcodeScanner(
-      "reader",
-      { fps: 10, qrbox: 250 },
-      false
-    );
+    setLoading(true);
+    setError("");
+    setStatus("");
+    setReasons([]);
 
-    scanner.render(
-      async (decodedText) => {
-        scanner.clear();
-        setScannedUrl(decodedText);
+    try {
+      const response = await axios.post("http://localhost:5000/check", {
+        url,
+      });
 
-        try {
-          const response = await axios.post("http://localhost:4000/check-url", {
-            url: decodedText,
-          });
-          setStatus(response.data.status);
-        } catch (err) {
-          console.error(err);
-          setStatus("error");
-        }
-      },
-      (error) => {
-        // ignore scan errors
-      }
-    );
-
-    return () => {
-      scanner.clear().catch(() => {});
-    };
-  }, [scannedUrl]);
+      setStatus(response.data.risk);
+      setReasons(response.data.reasons);
+    } catch (err) {
+      setError("Unable to check URL. Server may be down.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div style={{ textAlign: "center", marginTop: "40px" }}>
-      <h1>🔐 SafeLink QR Scanner</h1>
+    <div className="App">
+      <h1>SafeLink Checker 🔐</h1>
 
-      {!scannedUrl && <div id="reader" style={{ width: "300px", margin: "auto" }} />}
+      <input
+        type="text"
+        placeholder="Paste a URL or scan a QR code"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+      />
 
-      {scannedUrl && (
-        <>
-          <h3>Scanned URL</h3>
-          <p>{scannedUrl}</p>
+      <button onClick={checkUrlSafety} disabled={loading}>
+        {loading ? "Checking..." : "Check Link"}
+      </button>
 
-          <h3>Status</h3>
-          <p>{status}</p>
+      {error && <p className="error">{error}</p>}
 
-          <button onClick={() => window.location.reload()}>
-            Scan Another Code
-          </button>
-        </>
+      {status && (
+        <div className={`status-box ${status.toLowerCase()}`}>
+          <h3>Status: {status}</h3>
+
+          {reasons.length > 0 && (
+            <>
+              <h4>Why?</h4>
+              <ul>
+                {reasons.map((reason, index) => (
+                  <li key={index}>{reason}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
