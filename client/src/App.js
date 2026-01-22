@@ -1,68 +1,97 @@
 import React, { useState } from "react";
 import axios from "axios";
+import { QrScanner } from "@yudiel/react-qr-scanner";
 import "./App.css";
 
 function App() {
-  const [url, setUrl] = useState("");
+  const [scannedUrl, setScannedUrl] = useState("");
   const [status, setStatus] = useState("");
   const [reasons, setReasons] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const checkUrlSafety = async () => {
-    if (!url) return;
+  const handleScan = async (data) => {
+    if (!data) return;
 
-    setLoading(true);
+    // Prevent re-scanning
+    if (scannedUrl) return;
+
+    setScannedUrl(data);
     setError("");
-    setStatus("");
-    setReasons([]);
 
     try {
-      const response = await axios.post("http://localhost:5000/check", {
-        url,
-      });
+      const response = await axios.post(
+        "http://localhost:5000/check-url",
+        { url: data }
+      );
 
       setStatus(response.data.risk);
       setReasons(response.data.reasons);
     } catch (err) {
-      setError("Unable to check URL. Server may be down.");
-    } finally {
-      setLoading(false);
+      setError("Failed to scan URL. Server not responding.");
     }
+  };
+
+  const handleError = (err) => {
+    console.error(err);
+    setError("Camera error or permission denied.");
+  };
+
+  const resetScanner = () => {
+    setScannedUrl("");
+    setStatus("");
+    setReasons([]);
+    setError("");
   };
 
   return (
     <div className="App">
-      <h1>SafeLink Checker 🔐</h1>
+      <h1>🔍 SafeLink QR Scanner</h1>
 
-      <input
-        type="text"
-        placeholder="Paste a URL or scan a QR code"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-      />
+      {!scannedUrl && (
+        <>
+          <p>Scan a QR code to check if a link is safe.</p>
 
-      <button onClick={checkUrlSafety} disabled={loading}>
-        {loading ? "Checking..." : "Check Link"}
-      </button>
+          <QrScanner
+  onDecode={handleScan}
+  onError={handleError}
+  constraints={{ facingMode: "environment" }}
+  style={{ width: "100%" }}
+/>
 
-      {error && <p className="error">{error}</p>}
+        </>
+      )}
 
-      {status && (
-        <div className={`status-box ${status.toLowerCase()}`}>
-          <h3>Status: {status}</h3>
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
-          {reasons.length > 0 && (
-            <>
-              <h4>Why?</h4>
-              <ul>
-                {reasons.map((reason, index) => (
-                  <li key={index}>{reason}</li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
+      {scannedUrl && (
+        <>
+          <h3>Scanned URL</h3>
+          <p style={{ wordBreak: "break-all" }}>{scannedUrl}</p>
+
+          <h3>
+            Risk Level:{" "}
+            <span
+              style={{
+                color:
+                  status === "SAFE"
+                    ? "green"
+                    : status === "SUSPICIOUS"
+                    ? "orange"
+                    : "red",
+              }}
+            >
+              {status}
+            </span>
+          </h3>
+
+          <ul>
+            {reasons.map((reason, index) => (
+              <li key={index}>{reason}</li>
+            ))}
+          </ul>
+
+          <button onClick={resetScanner}>Scan Another Code</button>
+        </>
       )}
     </div>
   );

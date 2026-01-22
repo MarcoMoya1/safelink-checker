@@ -1,42 +1,36 @@
 const express = require("express");
 const cors = require("cors");
-const axios = require("axios");
+const { URL } = require("url");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send("SafeLink Scanner API Running");
-});
+const scamKeywords = [
+  "login",
+  "verify",
+  "account",
+  "update",
+  "secure",
+  "bank",
+  "wallet",
+  "free",
+  "claim",
+];
 
-/**
- * Utility helpers
- */
-const isIpAddress = (url) => {
-  return /^(http(s)?:\/\/)?(\d{1,3}\.){3}\d{1,3}/.test(url);
-};
+const shorteners = [
+  "bit.ly",
+  "tinyurl.com",
+  "t.co",
+  "goo.gl",
+  "ow.ly",
+];
 
-const isShortenedUrl = (url) => {
-  const shorteners = [
-    "bit.ly",
-    "tinyurl.com",
-    "t.co",
-    "goo.gl",
-    "ow.ly",
-  ];
-  return shorteners.some((service) => url.includes(service));
-};
+function isIpAddress(hostname) {
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+}
 
-const containsMaliciousKeywords = (url) => {
-  const keywords = ["login", "verify", "secure", "update", "account"];
-  return keywords.some((word) => url.toLowerCase().includes(word));
-};
-
-/**
- * Main check route
- */
 app.post("/check-url", (req, res) => {
   const { url } = req.body;
 
@@ -44,27 +38,53 @@ app.post("/check-url", (req, res) => {
     return res.status(400).json({ error: "No URL provided" });
   }
 
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    return res.json({
+      risk: "DANGEROUS",
+      reasons: ["Invalid URL format"],
+    });
+  }
+
+  const reasons = [];
   let risk = "SAFE";
-  let reasons = [];
 
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+  // 🚨 HTTP is dangerous
+  if (parsedUrl.protocol === "http:") {
     risk = "DANGEROUS";
-    reasons.push("Invalid or missing protocol");
+    reasons.push("Uses insecure HTTP");
   }
 
-  if (isIpAddress(url)) {
+  // 🚨 IP address instead of domain
+  if (isIpAddress(parsedUrl.hostname)) {
     risk = "DANGEROUS";
-    reasons.push("Uses raw IP address");
+    reasons.push("Uses IP address instead of domain");
   }
 
-  if (containsMaliciousKeywords(url)) {
-    risk = "SUSPICIOUS";
-    reasons.push("Contains phishing-related keywords");
+  // ⚠️ URL shortener
+  if (shorteners.includes(parsedUrl.hostname)) {
+    if (risk !== "DANGEROUS") risk = "SUSPICIOUS";
+    reasons.push("Uses URL shortener");
   }
 
-  if (isShortenedUrl(url)) {
-    risk = "SUSPICIOUS";
-    reasons.push("Uses URL shortening service");
+  // ⚠️ Suspicious keywords
+  scamKeywords.forEach((keyword) => {
+    if (parsedUrl.href.toLowerCase().includes(keyword)) {
+      if (risk === "SAFE") risk = "SUSPICIOUS";
+      reasons.push(`Contains keyword: ${keyword}`);
+    }
+  });
+
+  // ⚠️ Very long URL
+  if (parsedUrl.href.length > 120) {
+    if (risk === "SAFE") risk = "SUSPICIOUS";
+    reasons.push("URL is unusually long");
+  }
+
+  if (reasons.length === 0) {
+    reasons.push("No obvious security risks detected");
   }
 
   res.json({
@@ -74,5 +94,11 @@ app.post("/check-url", (req, res) => {
   });
 });
 
+app.get("/", (req, res) => {
+  res.send("SafeLink Scanner API Running");
+});
+
 const PORT = 5000;
-app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`Server running on http://localhost:${PORT}`)
+);
