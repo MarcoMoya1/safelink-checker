@@ -50,4 +50,8 @@ This project aims to:
 ---
 
 ## 📁 Project Structure
+## Example Photos 
 
+<img width="946" height="318" alt="Safe Url Example" src="https://github.com/user-attachments/assets/991e0e61-d643-42fd-89e0-e84802487502" />
+<img width="946" height="318" alt="Unsafe Url Example" src="https://github.com/user-attachments/assets/72a1a631-88e0-43d3-a973-9d64337437f7" />
+<img width="946" height="410" alt="Suspicious Url Example" src="https://github.com/user-attachments/assets/777c802c-cd91-47b6-9959-1ca74d95a75f" />
